@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Registro de Horas - Qatarsys</title>
+<meta name="theme-color" content="#1f4e78">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Horas Qatarsys">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <img class="logo" id="headerLogo" src="logo.png" alt="Logo" onerror="this.style.display='none'">
+  <div class="title">Registro de Horas
+    <small id="employeeLabel">&nbsp;</small>
+  </div>
+</header>
+
+<div class="period-bar">
+  <select id="monthSelect" aria-label="Mes"></select>
+  <input type="number" id="yearInput" aria-label="Anio" min="2020" max="2100">
+</div>
+
+<div class="tabbar">
+  <button class="tab-btn active" data-tab="registro">Registrar</button>
+  <button class="tab-btn" data-tab="proyectos">Proyectos</button>
+  <button class="tab-btn" data-tab="config">Configuracion</button>
+  <button class="tab-btn" data-tab="resumen">Resumen</button>
+</div>
+
+<main>
+
+  <!-- ============ TAB: Registrar ============ -->
+  <section class="tabpanel active" id="tab-registro">
+    <div class="card">
+      <h2 id="formTitle">Nueva entrada</h2>
+
+      <div class="field">
+        <label for="f_date">Fecha</label>
+        <input type="date" id="f_date">
+      </div>
+      <div class="field">
+        <label for="f_location">Ubicacion</label>
+        <input type="text" id="f_location" placeholder="Ej: Oficina">
+      </div>
+      <div class="field">
+        <label for="f_client">Contratista</label>
+        <input type="text" id="f_client" placeholder="Ej: Qatarsys">
+      </div>
+      <div class="field">
+        <label for="f_project">Proyecto</label>
+        <input type="text" id="f_project" placeholder="Ej: Proyecto Alfa">
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="f_start">Hora inicio</label>
+          <input type="time" id="f_start">
+        </div>
+        <div class="field">
+          <label for="f_end">Hora fin</label>
+          <input type="time" id="f_end">
+        </div>
+      </div>
+      <div class="total-preview" id="totalPreview">Horas totales: -</div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="f_extra">
+        <label for="f_extra">Horas extra</label>
+      </div>
+
+      <div class="field">
+        <label for="f_bonus">Premio del dia (EUR)</label>
+        <input type="number" id="f_bonus" inputmode="decimal" step="0.01" value="0">
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary btn-full" id="btnAdd">Anadir</button>
+        <button class="btn btn-secondary" id="btnCancelEdit" style="display:none">Cancelar</button>
+      </div>
+    </div>
+
+    <div class="entry-list">
+      <h3 id="entriesHeading">Entradas del mes</h3>
+      <div id="entriesContainer"></div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: Proyectos ============ -->
+  <section class="tabpanel" id="tab-proyectos">
+    <div class="card">
+      <h2 id="projectFormTitle">Nuevo proyecto</h2>
+
+      <div class="field">
+        <label for="p_date">Fecha</label>
+        <input type="date" id="p_date">
+      </div>
+      <div class="field">
+        <label for="p_name">Nombre del proyecto</label>
+        <input type="text" id="p_name" placeholder="Ej: Graficos evento X">
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="p_cost">Coste del proyecto (EUR)</label>
+          <input type="number" id="p_cost" inputmode="decimal" step="0.01" placeholder="opcional">
+        </div>
+        <div class="field">
+          <label for="p_percentage">Mi porcentaje (%)</label>
+          <input type="number" id="p_percentage" inputmode="decimal" step="0.01" placeholder="opcional">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="p_amount">Importe a cobrar (EUR)</label>
+        <input type="number" id="p_amount" inputmode="decimal" step="0.01">
+      </div>
+      <p class="hint">Si indicas coste y porcentaje, el importe se calcula solo. Si dejas alguno
+        vacio, escribe el importe a cobrar directamente (ej: 500).</p>
+
+      <div class="btn-row">
+        <button class="btn btn-primary btn-full" id="btnAddProject">Anadir</button>
+        <button class="btn btn-secondary" id="btnCancelEditProject" style="display:none">Cancelar</button>
+      </div>
+    </div>
+
+    <div class="entry-list">
+      <h3 id="projectsHeading">Proyectos del mes</h3>
+      <div id="projectsContainer"></div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: Configuracion ============ -->
+  <section class="tabpanel" id="tab-config">
+    <div class="card">
+      <h2>Empleado</h2>
+      <div class="field">
+        <label for="cfg_employee">Nombre del empleado</label>
+        <input type="text" id="cfg_employee">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Contrato y tarifas</h2>
+      <div class="field">
+        <label for="cfg_hours">Horas de contrato al mes</label>
+        <input type="number" id="cfg_hours" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label for="cfg_salary">Salario fijo del contrato (EUR)</label>
+        <input type="number" id="cfg_salary" inputmode="decimal" step="0.01">
+      </div>
+      <div class="field">
+        <label for="cfg_rate">Tarifa base de horas extra (EUR/h)</label>
+        <input type="number" id="cfg_rate" inputmode="decimal" step="0.01">
+      </div>
+      <div class="field">
+        <label for="cfg_mult">Multiplicador de horas extra (x)</label>
+        <input type="number" id="cfg_mult" inputmode="decimal" step="0.01">
+      </div>
+      <p class="hint" id="finalRateLabel">Tarifa final de hora extra: -</p>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-full" id="btnSaveConfig">Guardar configuracion</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Datos</h2>
+      <p class="hint">Copia de seguridad, importacion y borrado. Si reinstalas la app o cambias de telefono, exporta antes una copia.</p>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-full" id="btnExport">Exportar copia de seguridad</button>
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label for="importFile">Importar copia de seguridad (.json)</label>
+        <input type="file" id="importFile" accept="application/json,.json">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-danger btn-full" id="btnClearData">Limpiar datos (nuevo mes)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: Resumen ============ -->
+  <section class="tabpanel" id="tab-resumen">
+    <div class="card">
+      <h2>Resumen del mes</h2>
+      <div class="summary-row"><span>Horas totales trabajadas</span><span id="s_total_hours">-</span></div>
+      <div class="summary-row"><span>Horas</span><span id="s_normal_hours">-</span></div>
+      <div class="summary-row"><span>Horas extra</span><span id="s_extra_hours">-</span></div>
+      <div class="summary-row"><span>Tarifa de hora extra (EUR/h)</span><span id="s_extra_rate">-</span></div>
+      <div class="summary-row"><span>Valor de las horas de contrato (EUR)</span><span id="s_normal_value">-</span></div>
+      <div class="summary-row"><span>Importe de las horas extra (EUR)</span><span id="s_extra_amount">-</span></div>
+      <div class="summary-row"><span>Importe de los proyectos cerrados (EUR)</span><span id="s_projects">-</span></div>
+      <div class="summary-row"><span><b>Valor total del trabajo del mes (EUR)</b></span><span id="s_work_value">-</span></div>
+      <div class="summary-row"><span>Salario fijo garantizado (EUR)</span><span id="s_salary">-</span></div>
+      <div class="summary-row"><span>Total premios (EUR)</span><span id="s_bonus">-</span></div>
+      <div class="summary-row total"><span>TOTAL A PAGAR</span><span id="s_total_pay">-</span></div>
+    </div>
+    <button class="btn btn-primary btn-full" id="btnExportXlsx">Generar informe Excel (.xlsx)</button>
+  </section>
+
+</main>
+
+<div id="toast"></div>
+
+<div class="modal-backdrop" id="confirmBackdrop">
+  <div class="modal-sheet">
+    <p id="confirmText"></p>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="confirmCancel">Cancelar</button>
+      <button class="btn btn-danger" id="confirmOk">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/fflate.min.js"></script>
+<script src="vendor/xlsx.bundle.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
