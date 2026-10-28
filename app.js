@@ -460,8 +460,11 @@ function resetProjectForm() {
 }
 
 $("btnAddProject").addEventListener("click", () => {
-  const date = $("p_date").value;
-  if (!date) { toast("Indica una fecha valida."); return; }
+  // Los proyectos no piden una fecha exacta: se archivan directamente en
+  // el mes/anio seleccionado arriba (el dia no importa para este apartado,
+  // solo se usa "01" internamente para poder filtrar por mes).
+  const { year, month } = currentPeriod();
+  const date = `${year}-${String(month).padStart(2, "0")}-01`;
 
   const name = $("p_name").value.trim();
   if (!name) { toast("Indica el nombre del proyecto."); return; }
@@ -484,10 +487,6 @@ $("btnAddProject").addEventListener("click", () => {
   }
   saveProjects(state.projects);
 
-  const [y, m] = date.split("-").map(Number);
-  $("yearInput").value = String(y);
-  $("monthSelect").value = String(m);
-
   resetProjectForm();
   renderAll();
   toast("Proyecto guardado.");
@@ -498,7 +497,6 @@ $("btnCancelEditProject").addEventListener("click", resetProjectForm);
 function startEditProject(id) {
   const entry = state.projects.find((e) => e.id === id);
   if (!entry) return;
-  $("p_date").value = entry.date;
   $("p_name").value = entry.name || "";
   $("p_cost").value = entry.cost ? String(entry.cost) : "";
   $("p_percentage").value = entry.percentage ? String(entry.percentage) : "";
@@ -506,7 +504,7 @@ function startEditProject(id) {
   updateProjectAmountPreview();
 
   state.editingProjectId = id;
-  $("projectFormTitle").textContent = `Editando proyecto del ${entry.date}`;
+  $("projectFormTitle").textContent = `Editando proyecto: ${entry.name || ""}`;
   $("btnAddProject").textContent = "Guardar cambios";
   $("btnCancelEditProject").style.display = "";
   document.querySelector('.tab-btn[data-tab="proyectos"]').click();
@@ -550,7 +548,7 @@ function renderEntries(rows) {
         <span class="date">${r.date}</span>
         <span class="times">${r.start_time}&ndash;${r.end_time}</span>
       </div>
-      <div class="meta">${[r.location, r.client, r.project].filter(Boolean).join(" · ") || "&nbsp;"}</div>
+      <div class="meta">${[r.client, r.location, r.project].filter(Boolean).join(" · ") || "&nbsp;"}</div>
       <div class="chips">
         <span class="chip">Total ${fmt2(r.total_hours)} h</span>
         <span class="chip">Horas ${fmt2(r.normal_hours)} h</span>
@@ -588,8 +586,7 @@ function renderProjects(projectRows) {
     card.className = "entry-card";
     card.innerHTML = `
       <div class="row-top">
-        <span class="date">${r.date}</span>
-        <span class="times">${r.name}</span>
+        <span class="date">${r.name}</span>
       </div>
       <div class="chips">
         ${r.cost ? `<span class="chip">Coste ${fmt2(r.cost)} €</span>` : ""}
@@ -796,7 +793,7 @@ function generateXlsx(rows, totals, projectRows, cfg, employeeName, year, month)
   const ws = {};
   const merges = [];
   const rowHeights = [];
-  const LAST_COL = 12; // 0-indexed -> column M (M = "Proyecto", anadida al final de la tabla diaria)
+  const LAST_COL = 12; // 0-indexed -> column M
   const set = (r, c, value, opts) => { ws[XLSX.utils.encode_cell({ r, c })] = xCell(value, opts); };
   const merge = (r1, c1, r2, c2) => merges.push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } });
   const setH = (r, pt) => { rowHeights[r] = { hpt: pt }; };
@@ -867,29 +864,14 @@ function generateXlsx(rows, totals, projectRows, cfg, employeeName, year, month)
   const contractSalaryCell = `C${cfgRow + 1}`;
   r += 2;
 
-  // Nota
-  set(r, 0,
-    "Nota: el salario fijo (650 EUR) es la paga del mes por el trabajo hecho, aunque sea menos " +
-    "de las 80 horas de contrato. Las horas de cada dia por encima de 8h son extra " +
-    "automaticamente; la casilla 'Horas extra' marca el dia entero como extra a mano. Para saber " +
-    "si se paga algo POR ENCIMA del salario fijo se calcula el valor del trabajo del mes = horas " +
-    "de contrato (a salario/horas de contrato, es decir 650/80) + horas extra (a su tarifa) + " +
-    "proyectos cerrados. El total a pagar es el MAYOR entre el salario fijo y ese valor, mas los " +
-    "premios (que se suman siempre).",
-    { italic: true, size: 11, color: "595959" }
-  );
-  merge(r, 0, r, LAST_COL);
-  setH(r, 36);
-  r += 2;
-
   // Tabla diaria
   set(r, 0, "1. REGISTRO DIARIO DE HORAS", { bold: true, size: 14, fill: C_TITLE_BG, color: C_WHITE });
   merge(r, 0, r, LAST_COL);
   setH(r, 28);
   r += 1;
-  const headers = ["Dia", "Ubicacion", "Contratista", "Inicio", "Fin", "Horas totales", "Horas",
-                    "Horas extra", "Tarifa extra (EUR/h)", "Importe extra (EUR)", "Premio (EUR)",
-                    "Total dia (EUR)", "Proyecto"];
+  const headers = ["Dia", "Contratista", "Ubicacion", "Pedido", "Inicio", "Fin", "Horas totales",
+                    "Horas", "Horas extra", "Tarifa extra (EUR/h)", "Importe extra (EUR)",
+                    "Premio (EUR)", "Total dia (EUR)"];
   headers.forEach((h, i) => set(r, i, h, { bold: true, fill: C_TABLE_HEADER_BG, color: C_WHITE, align: "center", size: 14 }));
   setH(r, 32);
   const tableHeaderRowIdx = r;
@@ -900,20 +882,20 @@ function generateXlsx(rows, totals, projectRows, cfg, employeeName, year, month)
     const fill = idx % 2 === 0 ? C_ROW_A : C_ROW_B;
     const rowNum = r + 1; // 1-indexed for formulas
     set(r, 0, row.date, { fill, size: 13 });
-    set(r, 1, row.location, { fill, size: 13 });
-    set(r, 2, row.client, { fill, size: 13 });
-    set(r, 3, row.start_time, { fill, size: 13, align: "center" });
-    set(r, 4, row.end_time, { fill, size: 13, align: "center" });
-    set(r, 5, row.total_hours, { fill, size: 13, align: "center", numFmt: "0.00" });
-    set(r, 6, row.normal_hours, { fill, size: 13, align: "center", numFmt: "0.00" });
-    set(r, 7, row.extra_hours, { fill, size: 13, align: "center", numFmt: "0.00" });
-    set(r, 8, totals.extra_rate, { fill, size: 13, align: "center", bold: true, color: C_BLUE, numFmt: "#,##0.00", formula: extraRateCell });
+    set(r, 1, row.client, { fill, size: 13 });
+    set(r, 2, row.location, { fill, size: 13 });
+    set(r, 3, row.project || "", { fill, size: 13 });
+    set(r, 4, row.start_time, { fill, size: 13, align: "center" });
+    set(r, 5, row.end_time, { fill, size: 13, align: "center" });
+    set(r, 6, row.total_hours, { fill, size: 13, align: "center", numFmt: "0.00" });
+    set(r, 7, row.normal_hours, { fill, size: 13, align: "center", numFmt: "0.00" });
+    set(r, 8, row.extra_hours, { fill, size: 13, align: "center", numFmt: "0.00" });
+    set(r, 9, totals.extra_rate, { fill, size: 13, align: "center", bold: true, color: C_BLUE, numFmt: "#,##0.00", formula: extraRateCell });
     const importeExtra = round2(row.extra_hours * totals.extra_rate);
-    set(r, 9, importeExtra, { fill, size: 13, align: "center", numFmt: "#,##0.00", formula: `H${rowNum}*I${rowNum}` });
-    set(r, 10, row.bonus, { fill, size: 13, align: "center", numFmt: "#,##0.00" });
+    set(r, 10, importeExtra, { fill, size: 13, align: "center", numFmt: "#,##0.00", formula: `I${rowNum}*J${rowNum}` });
+    set(r, 11, row.bonus, { fill, size: 13, align: "center", numFmt: "#,##0.00" });
     const totalDia = round2(importeExtra + row.bonus);
-    set(r, 11, totalDia, { fill, size: 13, align: "center", bold: true, numFmt: "#,##0.00", formula: `J${rowNum}+K${rowNum}` });
-    set(r, 12, row.project || "", { fill, size: 13 });
+    set(r, 12, totalDia, { fill, size: 13, align: "center", bold: true, numFmt: "#,##0.00", formula: `K${rowNum}+L${rowNum}` });
     setH(r, 22);
     r += 1;
   });
@@ -929,20 +911,19 @@ function generateXlsx(rows, totals, projectRows, cfg, employeeName, year, month)
   // Subtotal
   const subtotalRowIdx = r;
   set(r, 0, "SUBTOTAL", { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE });
-  merge(r, 0, r, 4);
+  merge(r, 0, r, 5);
   const fdr = firstDataRow + 1, ldr = lastDataRow + 1; // 1-indexed
-  set(r, 5, totals.total_hours, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "0.00", formula: `SUM(F${fdr}:F${ldr})` });
-  set(r, 6, totals.total_normal_hours, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "0.00", formula: `SUM(G${fdr}:G${ldr})` });
-  set(r, 7, totals.total_extra_hours, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "0.00", formula: `SUM(H${fdr}:H${ldr})` });
-  set(r, 8, "", { fill: C_SUBTOTAL_BG });
-  set(r, 9, totals.extra_amount, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "#,##0.00", formula: `SUM(J${fdr}:J${ldr})` });
-  set(r, 10, totals.total_bonus, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "#,##0.00", formula: `SUM(K${fdr}:K${ldr})` });
+  set(r, 6, totals.total_hours, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "0.00", formula: `SUM(G${fdr}:G${ldr})` });
+  set(r, 7, totals.total_normal_hours, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "0.00", formula: `SUM(H${fdr}:H${ldr})` });
+  set(r, 8, totals.total_extra_hours, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "0.00", formula: `SUM(I${fdr}:I${ldr})` });
+  set(r, 9, "", { fill: C_SUBTOTAL_BG });
+  set(r, 10, totals.extra_amount, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "#,##0.00", formula: `SUM(K${fdr}:K${ldr})` });
+  set(r, 11, totals.total_bonus, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "#,##0.00", formula: `SUM(L${fdr}:L${ldr})` });
   const totalDiasSum = round2(sum(rows.map((row) => round2(round2(row.extra_hours * totals.extra_rate) + row.bonus))));
-  set(r, 11, totalDiasSum, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "#,##0.00", formula: `SUM(L${fdr}:L${ldr})` });
-  set(r, 12, "", { fill: C_SUBTOTAL_BG });
+  set(r, 12, totalDiasSum, { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE, align: "center", numFmt: "#,##0.00", formula: `SUM(M${fdr}:M${ldr})` });
   setH(r, 24);
-  const importeExtraCell = `J${subtotalRowIdx + 1}`;
-  const premiosCell = `K${subtotalRowIdx + 1}`;
+  const importeExtraCell = `K${subtotalRowIdx + 1}`;
+  const premiosCell = `L${subtotalRowIdx + 1}`;
   r += 2;
 
   // Tabla de proyectos cerrados (paleta naranja, igual que la plantilla del usuario)
@@ -950,14 +931,12 @@ function generateXlsx(rows, totals, projectRows, cfg, employeeName, year, month)
   merge(r, 0, r, LAST_COL);
   setH(r, 28);
   r += 1;
-  set(r, 0, "Fecha", { bold: true, fill: C_PROJECTS_HEADER_BG, color: C_WHITE, align: "center", size: 14 });
-  merge(r, 0, r, 1);
-  set(r, 2, "Nombre del proyecto", { bold: true, fill: C_PROJECTS_HEADER_BG, color: C_WHITE, align: "center", size: 14 });
-  merge(r, 2, r, 5);
+  set(r, 0, "Nombre del proyecto", { bold: true, fill: C_PROJECTS_HEADER_BG, color: C_WHITE, align: "center", size: 14 });
+  merge(r, 0, r, 5);
   set(r, 6, "Importe del proyecto (EUR)", { bold: true, fill: C_PROJECTS_HEADER_BG, color: C_WHITE, align: "center", size: 14 });
   merge(r, 6, r, 7);
   set(r, 8, "% acordado", { bold: true, fill: C_PROJECTS_HEADER_BG, color: C_WHITE, align: "center", size: 14 });
-  set(r, 9, "Mi comision (EUR)", { bold: true, fill: C_PROJECTS_HEADER_BG, color: C_WHITE, align: "center", size: 14 });
+  set(r, 9, "Comision (EUR)", { bold: true, fill: C_PROJECTS_HEADER_BG, color: C_WHITE, align: "center", size: 14 });
   merge(r, 9, r, LAST_COL);
   setH(r, 32);
   r += 1;
@@ -965,10 +944,8 @@ function generateXlsx(rows, totals, projectRows, cfg, employeeName, year, month)
 
   projectRows.forEach((pr, idx) => {
     const fill = idx % 2 === 0 ? C_PROJECTS_ROW_A : C_PROJECTS_ROW_B;
-    set(r, 0, pr.date, { fill, size: 13 });
-    merge(r, 0, r, 1);
-    set(r, 2, pr.name, { fill, size: 13 });
-    merge(r, 2, r, 5);
+    set(r, 0, pr.name, { fill, size: 13 });
+    merge(r, 0, r, 5);
     set(r, 6, pr.cost || "", { fill, size: 13, align: "center", numFmt: "#,##0.00" });
     merge(r, 6, r, 7);
     set(r, 8, pr.percentage || "", { fill, size: 13, align: "center", numFmt: "0.00" });
@@ -980,8 +957,7 @@ function generateXlsx(rows, totals, projectRows, cfg, employeeName, year, month)
 
   let projLastRow = r - 1;
   if (projectRows.length === 0) {
-    set(r, 0, "", { fill: C_PROJECTS_ROW_A, size: 13 }); merge(r, 0, r, 1);
-    set(r, 2, "", { fill: C_PROJECTS_ROW_A, size: 13 }); merge(r, 2, r, 5);
+    set(r, 0, "", { fill: C_PROJECTS_ROW_A, size: 13 }); merge(r, 0, r, 5);
     set(r, 6, "", { fill: C_PROJECTS_ROW_A, size: 13 }); merge(r, 6, r, 7);
     set(r, 8, "", { fill: C_PROJECTS_ROW_A, size: 13 });
     set(r, 9, "", { fill: C_PROJECTS_ROW_A, size: 13 }); merge(r, 9, r, LAST_COL);
@@ -1006,9 +982,9 @@ function generateXlsx(rows, totals, projectRows, cfg, employeeName, year, month)
   const workValue = computeWorkValue(totals, totalProjects);
   const grandTotal = computeGrandTotal(totals, totalProjects, cfg.contract_salary);
   const cfgHoursCell = `A${cfgRow + 1}`;
-  const normalHoursTotalCell = `G${subtotalRowIdx + 1}`;
+  const normalHoursTotalCell = `H${subtotalRowIdx + 1}`;
 
-  set(r, 0, "3. CALCULO TOTAL A PAGAR", { bold: true, size: 14, fill: C_TITLE_BG, color: C_WHITE });
+  set(r, 0, "3. CALCULO TOTAL A PAGAR", { bold: true, size: 14, fill: C_TOTAL_BG, color: C_WHITE });
   merge(r, 0, r, LAST_COL);
   setH(r, 28);
   r += 1;
@@ -1029,17 +1005,17 @@ function generateXlsx(rows, totals, projectRows, cfg, employeeName, year, month)
   merge(r, 7, r, LAST_COL);
   setH(r, 22);
   r += 1;
-  set(r, 0, "Importe de los proyectos cerrados (EUR)", { bold: true, fill: C_PROJECTS_TITLE_BG, color: C_WHITE });
+  set(r, 0, "Importe de los proyectos cerrados (EUR)", { bold: true, fill: C_NOTE_BG, color: "595959" });
   merge(r, 0, r, 6);
-  set(r, 7, totalProjects, { align: "center", fill: C_PROJECTS_TITLE_BG, color: C_WHITE, bold: true, numFmt: "#,##0.00", formula: proyectosCell });
+  set(r, 7, totalProjects, { align: "center", fill: C_NOTE_BG, bold: true, numFmt: "#,##0.00", formula: proyectosCell });
   merge(r, 7, r, LAST_COL);
   setH(r, 22);
   r += 1;
   const workValueRow = r + 1;
-  set(r, 0, "Valor total del trabajo del mes (EUR)", { bold: true, fill: C_SUBTOTAL_BG, color: C_WHITE });
+  set(r, 0, "Valor total del trabajo del mes (EUR)", { bold: true, fill: C_NOTE_BG, color: "595959" });
   merge(r, 0, r, 6);
   set(r, 7, workValue, {
-    align: "center", fill: C_SUBTOTAL_BG, color: C_WHITE, bold: true, numFmt: "#,##0.00",
+    align: "center", fill: C_NOTE_BG, bold: true, numFmt: "#,##0.00",
     formula: `H${normalValueRow}+H${normalValueRow + 1}+H${normalValueRow + 2}`,
   });
   merge(r, 7, r, LAST_COL);
@@ -1225,7 +1201,6 @@ $("btnExportXlsx").addEventListener("click", () => {
 function init() {
   initPeriodControls();
   $("f_date").value = todayISO();
-  $("p_date").value = todayISO();
   resetForm();
   resetProjectForm();
   fillConfigForm();

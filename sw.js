@@ -1,4 +1,4 @@
-const CACHE_NAME = "horas-qatarsys-v15";
+const CACHE_NAME = "horas-qatarsys-v18";
 const ASSETS = [
   "./",
   "./index.html",
